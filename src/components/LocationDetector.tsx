@@ -48,50 +48,110 @@ export const LocationDetector = ({ onLocationChange, initialLocation }: Location
 
     setIsDetecting(true);
 
+    // Enhanced geolocation options for better mobile detection
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 20000, // Increased timeout for mobile
+      maximumAge: 60000 // Cache for 1 minute
+    };
+
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
           const { latitude, longitude } = position.coords;
+          console.log('Detected coordinates:', { latitude, longitude });
           
-          // Using a more reliable geocoding service
-          const response = await fetch(
-            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-          );
+          // Try multiple geocoding services for better accuracy
+          let locationData = null;
           
-          if (response.ok) {
-            const data = await response.json();
-            console.log("Geocoding response:", data);
+          // Primary service: BigDataCloud
+          try {
+            const response = await fetch(
+              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+            );
             
-            // More accurate state and city extraction
-            let detectedState = data.principalSubdivision || data.principalSubdivisionCode || "";
-            let detectedCity = data.city || data.locality || data.localityInfo?.administrative?.[2]?.name || "";
-            
-            // Clean up state name to match our list
-            if (detectedState) {
-              const stateMatch = indianStates.find(state => 
-                state.toLowerCase().includes(detectedState.toLowerCase()) ||
-                detectedState.toLowerCase().includes(state.toLowerCase())
+            if (response.ok) {
+              locationData = await response.json();
+              console.log('BigDataCloud response:', locationData);
+            }
+          } catch (error) {
+            console.error('BigDataCloud API failed:', error);
+          }
+
+          // Fallback service: OpenStreetMap Nominatim
+          if (!locationData) {
+            try {
+              const response = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
               );
+              
+              if (response.ok) {
+                const osmData = await response.json();
+                console.log('OpenStreetMap response:', osmData);
+                
+                locationData = {
+                  principalSubdivision: osmData.address?.state || osmData.address?.region,
+                  city: osmData.address?.city || osmData.address?.town || osmData.address?.village,
+                  locality: osmData.address?.suburb || osmData.address?.neighbourhood || osmData.address?.hamlet,
+                  countryName: osmData.address?.country
+                };
+              }
+            } catch (error) {
+              console.error('OpenStreetMap API failed:', error);
+            }
+          }
+          
+          if (locationData) {
+            // Enhanced state and city extraction
+            let detectedState = locationData.principalSubdivision || locationData.principalSubdivisionCode || "";
+            let detectedCity = locationData.city || locationData.locality || locationData.localityInfo?.administrative?.[2]?.name || "";
+            
+            // Clean up and match state name
+            if (detectedState) {
+              // Remove common suffixes and clean the state name
+              detectedState = detectedState.replace(/\s+(state|province)$/i, '').trim();
+              
+              const stateMatch = indianStates.find(state => {
+                const stateLower = state.toLowerCase();
+                const detectedLower = detectedState.toLowerCase();
+                
+                return stateLower === detectedLower ||
+                       stateLower.includes(detectedLower) ||
+                       detectedLower.includes(stateLower) ||
+                       // Handle common variations
+                       (stateLower === 'delhi' && detectedLower.includes('delhi')) ||
+                       (stateLower === 'telangana' && (detectedLower.includes('telangana') || detectedLower.includes('hyderabad'))) ||
+                       (stateLower === 'karnataka' && (detectedLower.includes('karnataka') || detectedLower.includes('bangalore'))) ||
+                       (stateLower === 'tamil nadu' && detectedLower.includes('tamil'));
+              });
+              
               if (stateMatch) {
                 detectedState = stateMatch;
               }
             }
             
+            // Clean up city name
+            if (detectedCity) {
+              detectedCity = detectedCity.replace(/\s+(city|district|municipal|corporation)$/i, '').trim();
+            }
+            
             const detectedLocation: LocationData = {
               state: detectedState,
               city: detectedCity,
-              address: data.locality ? `${data.locality}, ${detectedCity}, ${detectedState}` : `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+              address: locationData.locality ? 
+                `${locationData.locality}, ${detectedCity}, ${detectedState}` : 
+                `${detectedCity}, ${detectedState}`
             };
             
             setLocation(detectedLocation);
             onLocationChange(detectedLocation);
             
             toast({
-              title: "Location detected successfully!",
+              title: "📍 Location detected!",
               description: `${detectedCity || 'City'}, ${detectedState || 'State'}`,
             });
           } else {
-            throw new Error("Failed to get location details");
+            throw new Error("No location data received");
           }
         } catch (error) {
           console.error("Error getting location details:", error);
@@ -100,14 +160,14 @@ export const LocationDetector = ({ onLocationChange, initialLocation }: Location
           const coordLocation: LocationData = {
             state: "",
             city: "",
-            address: `${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`
+            address: `Lat: ${position.coords.latitude.toFixed(4)}, Lng: ${position.coords.longitude.toFixed(4)}`
           };
           setLocation(coordLocation);
           onLocationChange(coordLocation);
           
           toast({
-            title: "Location detected (coordinates)",
-            description: "Please manually select your state and city for better accuracy",
+            title: "📍 Location detected (coordinates)",
+            description: "Please manually select your state and city",
             variant: "default"
           });
         } finally {
@@ -120,11 +180,11 @@ export const LocationDetector = ({ onLocationChange, initialLocation }: Location
         
         let errorMessage = "Please enable location access or enter manually";
         if (error.code === error.PERMISSION_DENIED) {
-          errorMessage = "Location access denied. Please enable location permissions and try again";
+          errorMessage = "📍 Location access denied. Please enable location permissions";
         } else if (error.code === error.POSITION_UNAVAILABLE) {
-          errorMessage = "Location information unavailable. Please enter manually";
+          errorMessage = "📍 Location unavailable. Please enter manually";
         } else if (error.code === error.TIMEOUT) {
-          errorMessage = "Location request timed out. Please try again";
+          errorMessage = "📍 Location request timed out. Please try again";
         }
         
         toast({
@@ -133,11 +193,7 @@ export const LocationDetector = ({ onLocationChange, initialLocation }: Location
           variant: "destructive"
         });
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 300000
-      }
+      options
     );
   };
 
@@ -152,48 +208,62 @@ export const LocationDetector = ({ onLocationChange, initialLocation }: Location
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6 }}
-      className="space-y-4"
+      className="space-y-3 sm:space-y-4"
     >
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-          Location Details
-        </h3>
+      {/* Mobile-optimized header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-2">
+          <div className="bg-blue-100 dark:bg-blue-900/30 p-1.5 rounded-lg flex-shrink-0">
+            <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 truncate">
+              📍 Location Details
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">
+              Help us find providers near you
+            </p>
+          </div>
+        </div>
+        
         <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="w-full sm:w-auto"
         >
           <Button
             variant="outline"
             size="sm"
             onClick={detectLocation}
             disabled={isDetecting}
-            className="text-sm font-medium border-blue-200 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+            className="w-full sm:w-auto text-xs sm:text-sm border-blue-200 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 h-8 sm:h-10"
           >
             {isDetecting ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin text-blue-600" />
+              <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 animate-spin text-blue-600" />
             ) : (
-              <MapPin className="w-4 h-4 mr-2 text-blue-600" />
+              <MapPin className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-blue-600" />
             )}
-            {isDetecting ? "Detecting..." : "Auto-Detect Location"}
+            {isDetecting ? "Detecting..." : "Auto-Detect"}
           </Button>
         </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-2">
-          <Label htmlFor="state" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+      {/* Mobile-optimized form fields */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div className="space-y-1.5 sm:space-y-2">
+          <Label htmlFor="state" className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
             State *
           </Label>
           <Select value={location.state} onValueChange={(value) => handleLocationChange("state", value)}>
-            <SelectTrigger className="h-12 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 hover:border-blue-400 transition-colors">
+            <SelectTrigger className="h-10 sm:h-12 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 hover:border-blue-400 transition-colors text-sm">
               <SelectValue placeholder="Select your state" />
             </SelectTrigger>
-            <SelectContent className="max-h-60 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+            <SelectContent className="max-h-48 sm:max-h-60 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
               {indianStates.map((state) => (
                 <SelectItem 
                   key={state} 
                   value={state}
-                  className="text-gray-900 dark:text-gray-100 hover:bg-blue-50 dark:hover:bg-blue-900/30 focus:bg-blue-100 dark:focus:bg-blue-900/50"
+                  className="text-gray-900 dark:text-gray-100 hover:bg-blue-50 dark:hover:bg-blue-900/30 focus:bg-blue-100 dark:focus:bg-blue-900/50 text-sm"
                 >
                   {state}
                 </SelectItem>
@@ -202,8 +272,8 @@ export const LocationDetector = ({ onLocationChange, initialLocation }: Location
           </Select>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="city" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+        <div className="space-y-1.5 sm:space-y-2">
+          <Label htmlFor="city" className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
             City *
           </Label>
           <Input
@@ -211,21 +281,21 @@ export const LocationDetector = ({ onLocationChange, initialLocation }: Location
             value={location.city}
             onChange={(e) => handleLocationChange("city", e.target.value)}
             placeholder="Enter your city"
-            className="h-12 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 hover:border-blue-400 transition-colors"
+            className="h-10 sm:h-12 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 hover:border-blue-400 transition-colors text-sm"
           />
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="address" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+      <div className="space-y-1.5 sm:space-y-2">
+        <Label htmlFor="address" className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
           Complete Address *
         </Label>
         <Input
           id="address"
           value={location.address}
           onChange={(e) => handleLocationChange("address", e.target.value)}
-          placeholder="Enter your complete address"
-          className="h-12 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 hover:border-blue-400 transition-colors"
+          placeholder="Enter your complete address (e.g., Dilsukhnagar, Hyderabad)"
+          className="h-10 sm:h-12 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 hover:border-blue-400 transition-colors text-sm"
         />
       </div>
     </motion.div>

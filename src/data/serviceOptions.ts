@@ -63,6 +63,24 @@ export const needOptions = {
     "Antenna installation",
     "Other TV service"
   ],
+  "wifi-installation": [
+    "New WiFi connection setup",
+    "Router installation",
+    "WiFi network configuration",
+    "Range extender setup",
+    "Internet connectivity issues",
+    "Network security setup",
+    "Other WiFi service"
+  ],
+  "dish-installation": [
+    "DTH dish installation",
+    "Satellite dish setup",
+    "Signal alignment",
+    "Set-top box configuration",
+    "Cable management",
+    "Dish relocation",
+    "Other dish service"
+  ],
   "drainage-cleaning": [
     "Blocked drain cleaning",
     "Sewer line cleaning",
@@ -107,5 +125,41 @@ export const needOptions = {
     "Heavy item transport",
     "Packing services",
     "Other moving service"
+  ],
+  "laptop-repair": [
+    "Screen replacement",
+    "Keyboard issues",
+    "Battery replacement",
+    "Hard drive problems",
+    "Software installation",
+    "Virus removal",
+    "Performance optimization",
+    "Hardware upgrade",
+    "Data recovery",
+    "Other laptop issue"
+  ],
+  "mobile-repair": [
+    "Screen replacement",
+    "Battery replacement",
+    "Charging port issues",
+    "Speaker/microphone problems",
+    "Camera issues",
+    "Software problems",
+    "Water damage repair",
+    "Button repair",
+    "Memory upgrade",
+    "Other mobile issue"
+  ],
+  "water-purifier-service": [
+    "New installation",
+    "Filter replacement",
+    "Service/maintenance",
+    "Not working/no water",
+    "Bad taste/odor",
+    "Leakage issues",
+    "Electrical problems",
+    "Annual maintenance",
+    "Relocation service",
+    "Other purifier issue"
   ]
 };

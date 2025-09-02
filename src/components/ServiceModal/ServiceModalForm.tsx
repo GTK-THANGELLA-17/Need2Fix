@@ -1,12 +1,11 @@
 
-import React, { useState } from 'react';
-import { MessageCircle, Phone } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LocationSelector } from '@/components/LocationSelector';
-import { needOptions } from '@/data/services';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { findMatchingProviders } from '@/services/providerMatching';
+import { FormFields } from './FormFields';
+import { ProviderResults } from './ProviderResults';
+import { FormSubmission } from './FormSubmission';
+import { InformationBanners } from './InformationBanners';
 
 interface ServiceModalFormProps {
   service: {
@@ -14,189 +13,311 @@ interface ServiceModalFormProps {
     name: string;
   };
   onClose: () => void;
+  initialLocation?: { state: string; city: string; address: string };
 }
 
-export const ServiceModalForm: React.FC<ServiceModalFormProps> = ({ service, onClose }) => {
+export const ServiceModalForm: React.FC<ServiceModalFormProps> = ({ 
+  service, 
+  onClose, 
+  initialLocation 
+}) => {
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
-    email: '',
     needDescription: '',
     additionalDetails: '',
-    location: { state: '', city: '', address: '' },
-    urgency: ''
+    location: initialLocation || { state: '', city: '', address: '' },
+    urgency: '',
+    preferredDate: undefined as Date | undefined
   });
+  const [showProviders, setShowProviders] = useState(false);
+  const [matchingProviders, setMatchingProviders] = useState<any[]>([]);
+  const [matchType, setMatchType] = useState<'area' | 'city' | 'state' | 'none'>('none');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Update form data when initialLocation changes
+  useEffect(() => {
+    if (initialLocation) {
+      setFormData(prev => ({ ...prev, location: initialLocation }));
+    }
+  }, [initialLocation]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const message = `🔧 *Service Request for ${service.name}*
+    if (!formData.location.state || !formData.location.city) {
+      alert('🚨 Please select your state and city to find service providers.');
+      return;
+    }
 
-👤 *Customer Details:*
-Name: ${formData.name}
-Phone: ${formData.phone}
-Email: ${formData.email}
+    if (!formData.name || !formData.phone) {
+      alert('📝 Please enter your name and phone number.');
+      return;
+    }
 
-📍 *Location:*
-${formData.location.address}
-${formData.location.city}, ${formData.location.state}
-
-🛠️ *Service Details:*
-Need: ${formData.needDescription}
-Urgency: ${formData.urgency}
-
-📝 *Additional Details:*
-${formData.additionalDetails}
-
-*Service Category:* ${service.name}`;
-
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/918499090369?text=${encodedMessage}`;
+    setIsLoading(true);
     
-    window.open(whatsappUrl, '_blank');
-    onClose();
+    try {
+      console.log('🚀 Starting provider search with form data:', formData);
+      
+      const matchingResult = findMatchingProviders(
+        service.id, 
+        formData.location.state, 
+        formData.location.city,
+        formData.location.address
+      );
+      
+      console.log('📊 Search result:', matchingResult);
+      
+      if (matchingResult.matchType === 'none') {
+        const locationStr = formData.location.address 
+          ? `${formData.location.address}, ${formData.location.city}, ${formData.location.state}`
+          : `${formData.location.city}, ${formData.location.state}`;
+        
+        alert(`❌ No ${service.name} providers are currently available in ${locationStr}. Please try a different location or contact us directly at 📞 +91 8499090369.`);
+        setIsLoading(false);
+        return;
+      }
+      
+      setMatchingProviders(matchingResult.providers);
+      setMatchType(matchingResult.matchType);
+      setShowProviders(true);
+    } catch (error) {
+      console.error('❌ Error finding providers:', error);
+      alert('⚠️ Error finding providers. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLocationChange = (location: any) => {
+    console.log('📍 Location changed:', location);
     setFormData(prev => ({ ...prev, location }));
   };
 
-  const serviceOptions = needOptions[service.id as keyof typeof needOptions] || [
-    'Installation/Setup',
-    'Repair/Maintenance',
-    'Consultation',
-    'Emergency service',
-    'Regular maintenance',
-    'Replacement'
-  ];
+  if (showProviders) {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key="provider-results"
+          initial={{ opacity: 0, x: 50, scale: 0.95 }}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          exit={{ opacity: 0, x: -50, scale: 0.95 }}
+          transition={{ 
+            type: "spring", 
+            stiffness: 400, 
+            damping: 25,
+            duration: 0.3
+          }}
+          className="w-full"
+        >
+          <ProviderResults
+            service={service}
+            formData={formData}
+            matchingProviders={matchingProviders}
+            matchType={matchType}
+            onBack={() => setShowProviders(false)}
+          />
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
 
   return (
-    <div className="p-4 sm:p-6">
-      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-        {/* Personal Details */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <Input
-            placeholder="Your Name *"
-            value={formData.name}
-            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-            className="h-10 sm:h-12"
-            required
+    <div className="w-full space-y-6">
+      {/* Welcome Message with Animation */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1, duration: 0.5 }}
+        className="text-center mb-8"
+      >
+        <motion.h2 
+          className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2, type: "spring", stiffness: 300 }}
+        >
+          🔧 Book {service.name} Service
+        </motion.h2>
+        <motion.p 
+          className="text-gray-600 dark:text-gray-400"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+        >
+          Fill in your details below to connect with verified professionals
+        </motion.p>
+      </motion.div>
+      
+      {/* Enhanced Information Banner */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ 
+          delay: 0.2, 
+          type: "spring", 
+          stiffness: 300, 
+          damping: 20 
+        }}
+      >
+        <InformationBanners />
+      </motion.div>
+      
+      {/* Form Fields Container with Better Scrolling */}
+      <motion.div
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ 
+          delay: 0.3, 
+          type: "spring", 
+          stiffness: 300, 
+          damping: 25,
+          duration: 0.6
+        }}
+        className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-2xl p-6 shadow-2xl border border-gray-200/50 dark:border-gray-700/50"
+      >
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+        >
+          <FormFields
+            formData={formData}
+            setFormData={setFormData}
+            service={service}
+            handleLocationChange={handleLocationChange}
           />
-          <Input
-            placeholder="Phone Number *"
-            value={formData.phone}
-            onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-            className="h-10 sm:h-12"
-            required
-          />
-        </div>
-
-        <Input
-          placeholder="Email Address"
-          type="email"
-          value={formData.email}
-          onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-          className="h-10 sm:h-12"
+        </motion.div>
+      </motion.div>
+      
+      {/* Submit Button */}
+      <motion.div
+        initial={{ opacity: 0, y: 30, scale: 0.9 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ 
+          delay: 0.5, 
+          type: "spring", 
+          stiffness: 400, 
+          damping: 20,
+          duration: 0.4
+        }}
+        className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-gray-200/50 dark:border-gray-700/50"
+      >
+        <FormSubmission
+          isLoading={isLoading}
+          onSubmit={handleSubmit}
         />
+      </motion.div>
 
-        {/* Need Description */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            What do you need? *
-          </label>
-          <Select 
-            value={formData.needDescription} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, needDescription: value }))}
+      {/* Success Indicators */}
+      <AnimatePresence>
+        {formData.name && formData.phone && formData.location.state && formData.location.city && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ 
+              opacity: 1, 
+              scale: 1, 
+              y: 0,
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
+            }}
+            exit={{ 
+              opacity: 0, 
+              scale: 0.8, 
+              y: -20,
+              transition: { duration: 0.2 }
+            }}
+            transition={{ 
+              type: "spring", 
+              stiffness: 500, 
+              damping: 25,
+              delay: 0.1
+            }}
+            whileHover={{ 
+              scale: 1.02,
+              boxShadow: "0 25px 50px rgba(0,0,0,0.15)"
+            }}
+            className="bg-gradient-to-r from-green-50 via-green-50 to-emerald-50 dark:from-green-900/20 dark:via-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-800 rounded-2xl p-6 shadow-xl"
           >
-            <SelectTrigger className="h-10 sm:h-12 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800">
-              <SelectValue placeholder="Select your specific need" />
-            </SelectTrigger>
-            <SelectContent className="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 max-h-60 z-[200]">
-              {serviceOptions.map((option) => (
-                <SelectItem 
-                  key={option} 
-                  value={option}
-                  className="text-gray-900 dark:text-gray-100 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer"
-                >
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Location Selector */}
-        <LocationSelector onLocationChange={handleLocationChange} />
-
-        {/* Urgency */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Urgency Level *
-          </label>
-          <Select 
-            value={formData.urgency} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, urgency: value }))}
-          >
-            <SelectTrigger className="h-10 sm:h-12 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800">
-              <SelectValue placeholder="How urgent is this?" />
-            </SelectTrigger>
-            <SelectContent className="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 z-[200]">
-              <SelectItem value="emergency" className="text-gray-900 dark:text-gray-100 hover:bg-red-50 dark:hover:bg-red-900/30">
-                🚨 Emergency (Within 2 hours)
-              </SelectItem>
-              <SelectItem value="urgent" className="text-gray-900 dark:text-gray-100 hover:bg-orange-50 dark:hover:bg-orange-900/30">
-                ⚡ Urgent (Today)
-              </SelectItem>
-              <SelectItem value="normal" className="text-gray-900 dark:text-gray-100 hover:bg-blue-50 dark:hover:bg-blue-900/30">
-                📅 Normal (Within 3 days)
-              </SelectItem>
-              <SelectItem value="flexible" className="text-gray-900 dark:text-gray-100 hover:bg-green-50 dark:hover:bg-green-900/30">
-                🕐 Flexible (This week)
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Additional Details */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Additional Details
-          </label>
-          <Textarea
-            placeholder="Describe your issue in detail, preferred time, special requirements..."
-            value={formData.additionalDetails}
-            onChange={(e) => setFormData(prev => ({ ...prev, additionalDetails: e.target.value }))}
-            rows={4}
-            className="resize-none border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800"
-          />
-        </div>
-
-        {/* Submit Buttons */}
-        <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <Button
-            type="submit"
-            className="w-full h-11 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
-          >
-            <MessageCircle className="w-4 h-4 mr-2" />
-            Send Request via WhatsApp
-          </Button>
-          
-          <div className="text-center">
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
-                Don't have WhatsApp?
-              </p>
-              <a
-                href="tel:8499090369"
-                className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium text-sm"
+            <motion.div 
+              className="flex items-center gap-3 text-green-700 dark:text-green-300"
+              initial={{ x: -10, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              <motion.div
+                className="relative"
+                animate={{ 
+                  scale: [1, 1.2, 1],
+                  rotate: [0, 10, -10, 0]
+                }}
+                transition={{ 
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
               >
-                <Phone size={14} />
-                Call 8499090369 directly
-              </a>
-            </div>
-          </div>
-        </div>
-      </form>
+                <div className="w-4 h-4 bg-green-500 rounded-full" />
+                <motion.div
+                  className="absolute inset-0 w-4 h-4 bg-green-400 rounded-full"
+                  animate={{ 
+                    scale: [1, 1.5, 1],
+                    opacity: [0.8, 0.3, 0.8]
+                  }}
+                  transition={{ 
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                />
+              </motion.div>
+              <motion.span 
+                className="text-lg font-bold"
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                ✅ Ready to find providers!
+              </motion.span>
+            </motion.div>
+            <motion.p
+              className="text-green-600 dark:text-green-400 mt-2 text-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+            >
+              🎉 All required fields completed. Click "Find Service Providers" to continue!
+            </motion.p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Progress Indicator */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6, duration: 0.4 }}
+        className="flex justify-center space-x-2 mt-8"
+      >
+        {[1, 2, 3].map((step, index) => (
+          <motion.div
+            key={step}
+            className={`w-3 h-3 rounded-full ${
+              step === 1 ? 'bg-blue-500' : 
+              step === 2 ? 'bg-gray-300 dark:bg-gray-600' : 
+              'bg-gray-300 dark:bg-gray-600'
+            }`}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ 
+              delay: 0.7 + (index * 0.1),
+              type: "spring",
+              stiffness: 400
+            }}
+            whileHover={{ scale: 1.3 }}
+          />
+        ))}
+      </motion.div>
     </div>
   );
 };

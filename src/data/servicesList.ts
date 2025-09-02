@@ -10,7 +10,15 @@ import {
   Droplet,
   Truck,
   House,
-  Users
+  Users,
+  Wifi,
+  Satellite,
+  Laptop,
+  Smartphone,
+  Filter,
+  Camera,
+  Package,
+  Snowflake
 } from "lucide-react";
 
 export interface Service {
@@ -76,6 +84,20 @@ export const services: Service[] = [
     gradient: "from-purple-400 to-indigo-500"
   },
   {
+    id: "wifi-installation",
+    name: "WiFi Installation",
+    icon: Wifi,
+    description: "Internet setup, router installation, and WiFi network configuration",
+    gradient: "from-blue-400 to-purple-500"
+  },
+  {
+    id: "dish-installation",
+    name: "Dish Installation",
+    icon: Satellite,
+    description: "Satellite dish setup, DTH installation, and signal configuration",
+    gradient: "from-green-400 to-teal-500"
+  },
+  {
     id: "drainage-cleaning",
     name: "Drainage Cleaning",
     icon: Droplet,
@@ -113,5 +135,49 @@ export const services: Service[] = [
     gradient: "from-violet-400 to-purple-500",
     requiresManpower: true,
     maxPeople: 8
+  },
+  {
+    id: "laptop-repair",
+    name: "Laptop Repair",
+    icon: Laptop,
+    description: "Laptop repair, hardware replacement, and software troubleshooting",
+    gradient: "from-indigo-400 to-blue-500"
+  },
+  {
+    id: "mobile-repair",
+    name: "Mobile Repair",
+    icon: Smartphone,
+    description: "Mobile phone repair, screen replacement, and software issues",
+    gradient: "from-pink-400 to-rose-500"
+  },
+  {
+    id: "water-purifier-service",
+    name: "Water Purifier Service",
+    icon: Filter,
+    description: "Water purifier installation, repair, and maintenance services",
+    gradient: "from-cyan-400 to-teal-500"
+  },
+  {
+    id: "cctv-installation",
+    name: "CCTV Installation",
+    icon: Camera,
+    description: "Security camera installation, repair, and surveillance system setup",
+    gradient: "from-slate-400 to-gray-600"
+  },
+  {
+    id: "movers-packers",
+    name: "Movers & Packers",
+    icon: Package,
+    description: "Professional moving, packing, and relocation services",
+    gradient: "from-brown-400 to-amber-600",
+    requiresManpower: true,
+    maxPeople: 12
+  },
+  {
+    id: "appliance-repair",
+    name: "Appliance Repair",
+    icon: Snowflake,
+    description: "AC, refrigerator, washing machine, microwave repair and maintenance",
+    gradient: "from-ice-400 to-blue-500"
   }
 ];

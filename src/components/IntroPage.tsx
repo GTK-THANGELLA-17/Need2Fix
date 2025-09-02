@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Shield, Users, Clock, Star, Sparkles, UserPlus } from "lucide-react";
+import { ArrowRight, Shield, Users, Clock, Star, Sparkles, UserPlus, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { NavigationHeader } from "@/components/NavigationHeader";
 import { Footer } from "@/components/Footer";
 import ServiceProviderModal from "@/components/ServiceProviderModal";
+import { PlatformInfoModal } from "@/components/PlatformInfoModal";
 import { TranslationProvider } from "@/contexts/TranslationContext";
 
 interface IntroPageProps {
@@ -14,6 +15,7 @@ interface IntroPageProps {
 
 export const IntroPage = ({ onExploreServices }: IntroPageProps) => {
   const [isServiceProviderModalOpen, setIsServiceProviderModalOpen] = useState(false);
+  const [isPlatformInfoModalOpen, setIsPlatformInfoModalOpen] = useState(false);
 
   const features = [
     {
@@ -171,6 +173,22 @@ export const IntroPage = ({ onExploreServices }: IntroPageProps) => {
                   where users can easily search and connect with local service providers.
                 </p>
               </div>
+              
+              {/* More About Platform Button */}
+              <div className="mt-6 text-center">
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    onClick={() => setIsPlatformInfoModalOpen(true)}
+                    variant="outline"
+                    className="border-2 border-blue-500 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 font-semibold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Info className="w-5 h-5" />
+                      <span>More About This Platform</span>
+                    </div>
+                  </Button>
+                </motion.div>
+              </div>
             </div>
           </motion.div>
 
@@ -221,6 +239,11 @@ export const IntroPage = ({ onExploreServices }: IntroPageProps) => {
             onClose={() => setIsServiceProviderModalOpen(false)}
           />
         </TranslationProvider>
+
+        <PlatformInfoModal
+          isOpen={isPlatformInfoModalOpen}
+          onClose={() => setIsPlatformInfoModalOpen(false)}
+        />
       </div>
     </ThemeProvider>
   );
